@@ -1,0 +1,9 @@
+build_out/
+dist/
+utils/*.exe
+utils/*.zip
+utils/*.7z
+utils/windows/server.js
+build/package.ps1
+*.bak
+*.tmp

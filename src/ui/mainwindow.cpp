@@ -332,11 +332,14 @@ void HandleInboundJSON(const std::string &msg)
                                 else argVec.push_back(x.dump());
                             }
                         }
-                        else if (second.is_string()) {
-                            argVec.push_back(second.get<std::string>());
-                        }
-                        else {
-                            argVec.push_back(second.dump());
+                        else
+                        {
+                            for (size_t i = 1; i < j["args"].size(); ++i)
+                            {
+                                auto &x = j["args"][i];
+                                if (x.is_string()) argVec.push_back(x.get<std::string>());
+                                else argVec.push_back(x.dump());
+                            }
                         }
                     }
 
@@ -348,6 +351,24 @@ void HandleInboundJSON(const std::string &msg)
             }
             return;
         }
+
+        // Support direct event message format: { "event": "...", "args": [...] }
+        if (j.contains("event") && j["event"].is_string())
+        {
+            std::string ev = j["event"].get<std::string>();
+            std::vector<std::string> argVec;
+            if (j.contains("args") && j["args"].is_array())
+            {
+                for (auto &x : j["args"])
+                {
+                    if (x.is_string()) argVec.push_back(x.get<std::string>());
+                    else argVec.push_back(x.dump());
+                }
+            }
+            HandleEvent(ev, argVec);
+            return;
+        }
+
         std::cout<<"Unknown Inbound event="<<msg<<"\n";
     } catch(std::exception &ex) {
         std::cerr<<"JSON parse error:"<<ex.what()<<"\n";
