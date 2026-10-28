@@ -354,6 +354,22 @@ void HandleInboundJSON(const std::string &msg)
     }
 }
 
+static void NavigateToWebUi(HWND hWnd)
+{
+    if (!g_pendingUrl) return;
+    std::wstring url = std::move(*g_pendingUrl);
+    g_pendingUrl.reset();
+    KillTimer(hWnd, TIMER_DEFERRED_NAV);
+
+    if (!url.empty() && g_webview) {
+        std::wcout << L"[WEBVIEW]: Navigating to " << url << std::endl;
+        g_webview->Navigate(url.c_str());
+    } else {
+        MessageBoxW(nullptr, L"All endpoints are unreachable",
+                    L"WebView2 Initialization Error", MB_ICONERROR | MB_OK);
+    }
+}
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch(message)
@@ -397,26 +413,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     }
     case WM_REACHABILITY_DONE: {
-        // wParam is a pointer to a std::wstring we allocated in the thread
-        std::wstring* pUrl = reinterpret_cast<std::wstring*>(wParam);
-        if(pUrl)
-        {
-            if (!pUrl->empty() && g_webview)
-            {
-                std::wcout << L"[WEBVIEW]: Navigating to " << *pUrl << std::endl;
-                g_webview->Navigate(pUrl->c_str());
-            }
-            else
-            {
-                MessageBoxW(nullptr,
-                            L"All endpoints are unreachable",
-                            L"WebView2 Initialization Error",
-                            MB_ICONERROR | MB_OK);
-            }
-            delete pUrl;
+        // wParam is a pointer to a std::wstring we allocated in the thread, or null
+        // when an extension install is resuming a navigation that already arrived.
+        if (auto* url = reinterpret_cast<std::wstring*>(wParam)) {
+            g_pendingUrl = std::move(*url);
+            delete url;
         }
+        int pending = g_pendingExtensions.load();
+        if (pending <= 0) { NavigateToWebUi(hWnd); break; }
+
+        // An install landing mid-parse kills the extension's content script and
+        // wedges the page on its loader, so wait for the last one to finish.
+        SetTimer(hWnd, TIMER_DEFERRED_NAV, DEFERRED_NAV_TIMEOUT_MS, nullptr);
+        std::wcout << L"[WEBVIEW]: Deferring navigation, " << pending
+                   << L" extension(s) installing" << std::endl;
         break;
     }
+    case WM_TIMER:
+        if (wParam != TIMER_DEFERRED_NAV)
+            return DefWindowProc(hWnd, message, wParam, lParam);
+        std::wcout << L"[WEBVIEW]: Extension install timed out" << std::endl;
+        NavigateToWebUi(hWnd);
+        break;
     case WM_HOTKEY:
     {
         // PlayPause Hotkey

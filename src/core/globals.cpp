@@ -95,6 +95,8 @@ std::atomic<bool>  g_waitStarted(false);
 // Extensions
 std::map<std::wstring, std::wstring> g_extensionMap;
 std::vector<std::wstring> g_scriptQueue;
+std::atomic<int> g_pendingExtensions = 0;
+std::optional<std::wstring> g_pendingUrl;
 
 // Updater
 std::atomic_bool       g_updaterRunning = false;

@@ -11,6 +11,7 @@
 #include <vector>
 #include <chrono>
 #include <filesystem>
+#include <optional>
 #include <wil/com.h>
 #include "nlohmann/json.hpp"
 #include <unordered_set>
@@ -142,6 +143,10 @@ extern std::atomic<bool> g_waitStarted;
 // Extensions
 extern std::map<std::wstring, std::wstring> g_extensionMap;
 extern std::vector<std::wstring> g_scriptQueue;
+extern std::atomic<int>          g_pendingExtensions;
+extern std::optional<std::wstring> g_pendingUrl;
+constexpr UINT_PTR TIMER_DEFERRED_NAV      = 0xB0B1;
+constexpr UINT     DEFERRED_NAV_TIMEOUT_MS = 20000;
 
 // Updater
 extern std::atomic_bool       g_updaterRunning;

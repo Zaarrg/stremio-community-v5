@@ -575,6 +575,13 @@ static void SetupWebMessageHandler()
     );
 }
 
+// One install finished; the last one releases the navigation it was holding up.
+static void OnExtensionSettled()
+{
+    if (g_pendingExtensions.fetch_sub(1) > 1) return;
+    PostMessage(g_hWnd, WM_REACHABILITY_DONE, 0, 0);
+}
+
 static void SetupExtensions()
 {
     if(!g_webview || !g_webviewProfile) return;
@@ -594,6 +601,7 @@ static void SetupExtensions()
         for(const auto& entry : std::filesystem::directory_iterator(extensionsRoot)) {
             if(entry.is_directory()) {
                 std::wstring folderName = entry.path().filename().wstring();
+                g_pendingExtensions.fetch_add(1);
                 HRESULT hr = g_webviewProfile->AddBrowserExtension(
                     entry.path().wstring().c_str(),
                     Microsoft::WRL::Callback<ICoreWebView2ProfileAddBrowserExtensionCompletedHandler>(
@@ -615,12 +623,14 @@ static void SetupExtensions()
                             std::wstring err = L"[EXTENSIONS]: Failed to add extension => " + std::to_wstring(result);
                             AppendToCrashLog(err);
                         }
+                        OnExtensionSettled();
                         return S_OK;
                     }).Get()
                 );
                 if(FAILED(hr)) {
                     std::wstring err = L"[EXTENSIONS]: AddBrowserExtension failed => " + std::to_wstring(hr);
                     AppendToCrashLog(err);
+                    OnExtensionSettled();
                 }
             }
         }
